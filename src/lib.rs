@@ -110,16 +110,31 @@ impl Ms5837_02ba {
             }
         }
         i2c.read(Self::ADDRESS, &mut buffer).map_err(|e| (e, 6))?;
-        
+
         let digital_temperature = (buffer[0] as u32) << 16 | (buffer[1] as u32) << 8 | (buffer[2] as u32);
-        let temp_difference = digital_temperature as i32 - ((self.reference_temperature as i32) << 8);
-        let actual_temperature = 2000 + (temp_difference as f32 * (self.temp_coef_temperature as f32 / (1 << 23) as f32)) as i32;
-
-        let offset = ((self.pressure_offset as i64) << 17) + (self.temp_coef_pressure_offset as i64 * temp_difference as i64) >> 6;
-        let sensitivity = (self.pressure_sensitivity as i64) << 16 + ((self.temp_coef_pressure_sensitivity as i32 * temp_difference) as i64) >> 7;
-        let temperature_compensated_pressure = ((((digital_pressure as i64 * sensitivity).abs() >> 21) * sensitivity.signum() - offset).abs() >> 15);
+        let temp_difference: i32 = (digital_temperature as i32) - ((self.reference_temperature as i32) << 8);
+        let actual_temperature =2000 + ((temp_difference as i64 * self.temp_coef_temperature as i64) >> 23) as i32;
 
 
+        let offset = ((self.pressure_offset as i64) << 17) + (((self.temp_coef_pressure_offset as i64) * (temp_difference as i64)) >> 6);
+        let sensitivity = ((self.pressure_sensitivity as i64) << 16) + (((self.temp_coef_pressure_sensitivity as i64) * (temp_difference as i64)) >> 7);
+        let temperature_compensated_pressure = ((((digital_pressure as i64) * sensitivity) >> 21) - offset) as i32 >> 15;
+
+        // Apply second order correction
+        if actual_temperature < 2000 {
+            let t_i = ((11 * (temp_difference as i64).pow(2)) >> 35) as i32;
+            let d_t = actual_temperature - 2000;
+            let off_i = (31 * (d_t as i64).pow(2)) >> 3;
+            let sens_i = (63 * (d_t as i64).pow(2)) >> 5;
+            let off2: i64 = offset - off_i;
+            let sens2 = sensitivity - sens_i;
+            let temp2 = actual_temperature - t_i;
+            let p2 = ((((digital_pressure as i64) * sens2) >> 21) - off2) as i32 >> 15;
+            return Ok(Some(SensorData {
+                temperature: temp2,
+                pressure: p2 as u32,
+            }))
+        }
         Ok(Some(SensorData {
             temperature: actual_temperature,
             pressure: temperature_compensated_pressure as u32,
