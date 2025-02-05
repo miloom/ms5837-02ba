@@ -27,7 +27,7 @@ fn crc4(n_prom: &mut [u16; 8]) -> u8 {
 
 pub struct SensorData {
     pub temperature: i32, // 0.01 deg_C
-    pub pressure: u32, // 0.01 mBar
+    pub pressure: i32, // 0.01 mBar
 }
 
 pub struct Ms5837_02ba {
@@ -132,12 +132,12 @@ impl Ms5837_02ba {
             let p2 = ((((digital_pressure as i64) * sens2) >> 21) - off2) as i32 >> 15;
             return Ok(Some(SensorData {
                 temperature: temp2,
-                pressure: p2 as u32,
+                pressure: p2,
             }))
         }
         Ok(Some(SensorData {
             temperature: actual_temperature,
-            pressure: temperature_compensated_pressure as u32,
+            pressure: temperature_compensated_pressure,
         }))
     }
 }
