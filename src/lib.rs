@@ -26,8 +26,8 @@ fn crc4(n_prom: &mut [u16; 8]) -> u8 {
 }
 
 pub struct SensorData {
-    temperature: i32, // 0.01 deg_C
-    pressure: u32, // 0.01 mBar
+    pub temperature: i32, // 0.01 deg_C
+    pub pressure: u32, // 0.01 mBar
 }
 
 pub struct Ms5837_02ba {
