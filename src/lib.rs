@@ -87,24 +87,24 @@ impl Ms5837_02ba {
         })
     }
     const READ_TIMEOUT_ITER: u8 = 200;
-    pub fn read<I: I2c>(&self, i2c: &mut I) -> Result<Option<SensorData>, I::Error> {
+    pub fn read<I: I2c>(&self, i2c: &mut I) -> Result<Option<SensorData>, (I::Error, usize)> {
         let mut buffer = [0u8; 3];
-        i2c.write(Self::ADDRESS, &[Self::D1_OSR2048])?;
-        i2c.write(Self::ADDRESS, &[Self::ADC_READ])?;
+        i2c.write(Self::ADDRESS, &[Self::D1_OSR2048]).map_err(|e| (e, 0))?;
+        i2c.write(Self::ADDRESS, &[Self::ADC_READ]).map_err(|e| (e, 1))?;
         let mut iteration_count = 0;
         while buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 0 {
-            i2c.read(Self::ADDRESS, &mut buffer)?;
+            i2c.read(Self::ADDRESS, &mut buffer).map_err(|e| (e, 3))?;
             iteration_count += 1;
             if iteration_count >= Self::READ_TIMEOUT_ITER {
                 return Ok(None);
             }
         }
         let digital_pressure = (buffer[0] as u32) << 16 | (buffer[1] as u32) << 8 | (buffer[2] as u32);
-        i2c.write(Self::ADDRESS, &[Self::D2_OSR2048])?;
-        i2c.write(Self::ADDRESS, &[Self::ADC_READ])?;
+        i2c.write(Self::ADDRESS, &[Self::D2_OSR2048]).map_err(|e| (e, 4))?;
+        i2c.write(Self::ADDRESS, &[Self::ADC_READ]).map_err(|e| (e, 5))?;
         let mut iteration_count = 0;
         while buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 0 {
-            i2c.read(Self::ADDRESS, &mut buffer)?;
+            i2c.read(Self::ADDRESS, &mut buffer).map_err(|e| (e, 6))?;
             iteration_count += 1;
             if iteration_count >= Self::READ_TIMEOUT_ITER {
                 return Ok(None);
