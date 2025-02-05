@@ -41,11 +41,11 @@ pub struct Ms5837_02ba {
 
 impl Ms5837_02ba {
     const ADDRESS: u8 = 0x76;
-    const RESET: u8 = 0b00011110;
-    const PROM_READ: u8 = 0b10100000;
-    const D1_OSR2048: u8 = 0b01000110;
-    const D2_OSR2048: u8 = 0b01010110;
-    const ADC_READ: u8 = 0b00000000;
+    const RESET: u8 = 0b0001_1110;
+    const PROM_READ: u8 = 0b1010_0000;
+    const D1_OSR2048: u8 = 0b0100_0110;
+    const D2_OSR2048: u8 = 0b0101_0110;
+    const ADC_READ: u8 = 0b0000_0000;
 
     pub fn new<I: I2c>(i2c: &mut I) -> Result<Ms5837_02ba, I::Error> {
         // Reset the system so it loads the PROM
@@ -90,26 +90,27 @@ impl Ms5837_02ba {
     pub fn read<I: I2c>(&self, i2c: &mut I) -> Result<Option<SensorData>, (I::Error, usize)> {
         let mut buffer = [0u8; 3];
         i2c.write(Self::ADDRESS, &[Self::D1_OSR2048]).map_err(|e| (e, 0))?;
-        i2c.write(Self::ADDRESS, &[Self::ADC_READ]).map_err(|e| (e, 1))?;
+
         let mut iteration_count = 0;
-        while buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 0 {
-            i2c.read(Self::ADDRESS, &mut buffer).map_err(|e| (e, 3))?;
+        while i2c.write(Self::ADDRESS, &[Self::ADC_READ]).is_err() {
             iteration_count += 1;
             if iteration_count >= Self::READ_TIMEOUT_ITER {
                 return Ok(None);
             }
         }
+        i2c.read(Self::ADDRESS, &mut buffer).map_err(|e| (e, 3))?;
         let digital_pressure = (buffer[0] as u32) << 16 | (buffer[1] as u32) << 8 | (buffer[2] as u32);
+
         i2c.write(Self::ADDRESS, &[Self::D2_OSR2048]).map_err(|e| (e, 4))?;
-        i2c.write(Self::ADDRESS, &[Self::ADC_READ]).map_err(|e| (e, 5))?;
         let mut iteration_count = 0;
-        while buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 0 {
-            i2c.read(Self::ADDRESS, &mut buffer).map_err(|e| (e, 6))?;
+        while i2c.write(Self::ADDRESS, &[Self::ADC_READ]).is_err() {
             iteration_count += 1;
             if iteration_count >= Self::READ_TIMEOUT_ITER {
                 return Ok(None);
             }
         }
+        i2c.read(Self::ADDRESS, &mut buffer).map_err(|e| (e, 6))?;
+        
         let digital_temperature = (buffer[0] as u32) << 16 | (buffer[1] as u32) << 8 | (buffer[2] as u32);
         let temp_difference = digital_temperature as i32 - ((self.reference_temperature as i32) << 8);
         let actual_temperature = 2000 + (temp_difference as f32 * (self.temp_coef_temperature as f32 / (1 << 23) as f32)) as i32;
